@@ -598,17 +598,17 @@ int ff_h264_check_intra_pred_mode(H264Context *h, int mode, int is_chroma)
 
     if ((h->left_samples_available & 0x8080) != 0x8080) {
         mode = left[mode];
-        if (is_chroma && (h->left_samples_available & 0x8080)) {
-            // mad cow disease mode, aka MBAFF + constrained_intra_pred
-            mode = ALZHEIMER_DC_L0T_PRED8x8 +
-                   (!(h->left_samples_available & 0x8000)) +
-                   2 * (mode == DC_128_PRED8x8);
-        }
         if (mode < 0) {
             av_log(h->avctx, AV_LOG_ERROR,
                    "left block unavailable for requested intra mode at %d %d\n",
                    h->mb_x, h->mb_y);
             return AVERROR_INVALIDDATA;
+        }
+        if (is_chroma && (h->left_samples_available & 0x8080)) {
+            // mad cow disease mode, aka MBAFF + constrained_intra_pred
+            mode = ALZHEIMER_DC_L0T_PRED8x8 +
+                   (!(h->left_samples_available & 0x8000)) +
+                   2 * (mode == DC_128_PRED8x8);
         }
     }
 
@@ -631,7 +631,7 @@ const uint8_t *ff_h264_decode_nal(H264Context *h, const uint8_t *src,
 
 #define STARTCODE_TEST                                                  \
     if (i + 2 < length && src[i + 1] == 0 && src[i + 2] <= 3) {         \
-        if (src[i + 2] != 3) {                                          \
+        if (src[i + 2] != 3 && src[i + 2] != 0) {                       \
             /* startcode, so we must be past the end */                 \
             length = i;                                                 \
         }                                                               \
@@ -704,7 +704,7 @@ const uint8_t *ff_h264_decode_nal(H264Context *h, const uint8_t *src,
         if (src[si + 2] > 3) {
             dst[di++] = src[si++];
             dst[di++] = src[si++];
-        } else if (src[si] == 0 && src[si + 1] == 0) {
+        } else if (src[si] == 0 && src[si + 1] == 0 && src[si + 2] != 0) {
             if (src[si + 2] == 3) { // escape
                 dst[di++]  = 0;
                 dst[di++]  = 0;
@@ -1807,6 +1807,17 @@ static int decode_update_thread_context(AVCodecContext *dst,
         h->mb_type_pool      = NULL;
         h->ref_index_pool    = NULL;
         h->motion_val_pool   = NULL;
+        h->intra4x4_pred_mode= NULL;
+        h->non_zero_count    = NULL;
+        h->slice_table_base  = NULL;
+        h->slice_table       = NULL;
+        h->cbp_table         = NULL;
+        h->chroma_pred_mode_table = NULL;
+        memset(h->mvd_table, 0, sizeof(h->mvd_table));
+        h->direct_table      = NULL;
+        h->list_counts       = NULL;
+        h->mb2b_xy           = NULL;
+        h->mb2br_xy          = NULL;
         for (i = 0; i < 2; i++) {
             h->rbsp_buffer[i] = NULL;
             h->rbsp_buffer_size[i] = 0;
